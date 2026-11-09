@@ -12,8 +12,8 @@ import {
 } from './scoring.js';
 import { tokenize } from './tokenize.js';
 
-const NOT_ENOUGH_TEXT = 'not enough text';
-const NOT_ENGLISH = 'text does not look like english \u00b7 language not supported';
+const NOT_ENOUGH_TEXT = 'min 30 words';
+const NOT_ENGLISH = 'lang not supported';
 const ASCII_LETTER_SHARE = 0.85;
 const COMMON_WORD_SHARE = 0.3;
 const LANGUAGE_MIN_WORDS = 20;

@@ -329,88 +329,6 @@ export function mattr(tokens) {
   };
 }
 
-function mtldPass(words) {
-  const counts = new Map();
-  let types = 0;
-  let factors = 0;
-  let started = 0;
-  for (let i = 0; i < words.length; i++) {
-    const count = (counts.get(words[i]) ?? 0) + 1;
-    counts.set(words[i], count);
-    if (count === 1) types += 1;
-    const span = i - started + 1;
-    const ttr = types / span;
-    if (span >= 10 && ttr <= MTLD_THRESHOLD) {
-      factors += 1;
-      started = i + 1;
-      counts.clear();
-      types = 0;
-    }
-  }
-  const leftover = words.length - started;
-  if (leftover > 0) {
-    const leftoverTtr = types / leftover;
-    factors += (1 - leftoverTtr) / (1 - MTLD_THRESHOLD);
-  }
-  return factors;
-}
-
-export function mtld(tokens) {
-  const words = lowerTokens(tokens);
-  if (words.length < 100) return unmeasured();
-  const forward = mtldPass(words);
-  const backward = mtldPass([...words].reverse());
-  const factors = (forward + backward) / 2;
-  const value = factors <= 0 ? words.length : words.length / factors;
-  return {
-    raw: value,
-    evidence: spanEvidence(
-      mostTypicalSpan(tokens, tokens.paragraphs) ?? tokens.sentences[0],
-      'textual lexical diversity (MTLD): words carried before variety runs out',
-    ),
-    measured: true,
-  };
-}
-
-export function guiraud(tokens) {
-  const words = lowerTokens(tokens);
-  if (words.length < MIN_WORDS) return unmeasured();
-  const types = new Set(words).size;
-  return {
-    raw: types / Math.sqrt(words.length),
-    evidence: [],
-    measured: true,
-  };
-}
-
-export function yuleK(tokens) {
-  const words = lowerTokens(tokens);
-  if (words.length < MIN_WORDS) return unmeasured();
-  const counts = frequencyMap(words);
-  let sum = 0;
-  for (const count of counts.values()) sum += count * count;
-  return {
-    raw: (10000 * (sum - words.length)) / (words.length * words.length),
-    evidence: [],
-    measured: true,
-  };
-}
-
-export function honore(tokens) {
-  const words = lowerTokens(tokens);
-  if (words.length < 100) return unmeasured();
-  const counts = frequencyMap(words);
-  let hapax = 0;
-  for (const count of counts.values()) if (count === 1) hapax += 1;
-  const types = counts.size;
-  if (types === 0 || hapax === types) return unmeasured();
-  return {
-    raw: (100 * Math.log(words.length)) / (1 - hapax / types),
-    evidence: [],
-    measured: true,
-  };
-}
-
 export function hapaxShare(tokens) {
   const words = lowerTokens(tokens);
   if (words.length < MIN_WORDS) return unmeasured();
@@ -699,42 +617,6 @@ export function ngramRepetition(tokens) {
   return { raw, evidence, measured: true };
 }
 
-export function collocationShuffle(tokens) {
-  const words = lowerTokens(tokens);
-  if (words.length < MIN_WORDS + 1) return unmeasured();
-  let predictable = 0;
-  let runStart = -1;
-  let bestRun = null;
-  for (let i = 0; i + 1 < words.length; i++) {
-    const score = (TOP_1000_WORDS.has(words[i]) ? 1 : 0) + (TOP_1000_WORDS.has(words[i + 1]) ? 1 : 0);
-    predictable += score / 2;
-    if (score === 2) {
-      if (runStart === -1) runStart = i;
-    } else if (runStart !== -1) {
-      if (bestRun === null || i - runStart > bestRun.end - bestRun.start) {
-        bestRun = { start: runStart, end: i + 1 };
-      }
-      runStart = -1;
-    }
-  }
-  if (runStart !== -1 && (bestRun === null || words.length - runStart > bestRun.end - bestRun.start)) {
-    bestRun = { start: runStart, end: words.length };
-  }
-  const raw = (predictable / (words.length - 1)) * 100;
-  const evidence = [];
-  if (bestRun !== null && bestRun.end - bestRun.start >= 3) {
-    const startOffset = tokens.words[bestRun.start].start;
-    const endOffset = tokens.words[bestRun.end - 1].end;
-    evidence.push({
-      text: tokens.raw.slice(startOffset, endOffset),
-      start: startOffset,
-      end: endOffset,
-      reason: 'run of stock common-word pairings',
-    });
-  }
-  return { raw, evidence, measured: true };
-}
-
 function sentenceSkeleton(words) {
   return words
     .slice(0, 8)
@@ -767,65 +649,6 @@ export function syntacticParallelism(tokens) {
   return {
     raw: (parallel / (skeletons.length - 1)) * 100,
     evidence,
-    measured: true,
-  };
-}
-
-export function discourseEntropy(tokens) {
-  const sentenceWords = wordsBySentence(tokens);
-  const markers = [];
-  sentenceWords.forEach((words, index) => {
-    if (words.length === 0) return;
-    const startText = tokens.sentences[index].text.toLowerCase();
-    for (const marker of DISCOURSE_MARKERS) {
-      if (!openerToRegex(marker).test(startText)) continue;
-      markers.push({ marker, span: tokens.sentences[index] });
-      break;
-    }
-  });
-  if (markers.length < 4) return unmeasured();
-  const counts = frequencyMap(markers.map((entry) => entry.marker));
-  const entropy = normalizedEntropy(counts, markers.length);
-  const mostRepeated = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  const evidence = [];
-  if (mostRepeated[1] > 1) {
-    for (const entry of markers) {
-      if (entry.marker !== mostRepeated[0]) continue;
-      evidence.push({
-        text: entry.span.text.slice(0, 40),
-        start: entry.span.start,
-        end: Math.min(entry.span.end, entry.span.start + 40),
-        reason: `repeated connective "${mostRepeated[0]}" (${mostRepeated[1]}x)`,
-      });
-      break;
-    }
-  }
-  return { raw: entropy, evidence, measured: true };
-}
-
-export function hedgeDensitySpread(tokens) {
-  const matches = findPhraseMatches(tokens.raw, HEDGING);
-  if (matches.length < 3 || tokens.wordCount < 40) return unmeasured();
-  const buckets = [0, 0, 0];
-  for (const match of matches) {
-    const ratio = match.start / Math.max(tokens.raw.length, 1);
-    buckets[Math.min(2, Math.floor(ratio * 3))] += 1;
-  }
-  const densest = Math.max(...buckets);
-  const raw = (densest / matches.length) * 100;
-  const segment = buckets.indexOf(densest);
-  const segStart = Math.floor((segment * tokens.raw.length) / 3);
-  const segEnd = Math.floor(((segment + 1) * tokens.raw.length) / 3);
-  return {
-    raw,
-    evidence: [
-      {
-        text: tokens.raw.slice(segStart, segStart + 60),
-        start: segStart,
-        end: Math.min(segEnd, segStart + 60),
-        reason: `hedges cluster: ${densest} of ${matches.length} sit in one stretch`,
-      },
-    ],
     measured: true,
   };
 }
@@ -897,15 +720,15 @@ export const METRICS = Object.freeze([
   },
   {
     id: 'burstiness',
-    label: 'Burstiness (rhythm)',
-    unit: 'cv of sentence length',
+    label: 'Rhythm',
+    unit: 'sentence length variation',
     title: 'Variation of sentence length (coefficient of variation). People write in bursts; machines keep an even rhythm. 0.55 is human-typical; 0.32 is machine-flat.',
     compute: burstiness,
   },
   {
     id: 'paragraph-uniformity',
     label: 'Paragraph uniformity',
-    unit: 'cv of paragraph length',
+    unit: 'paragraph length variation',
     title: 'Variation of paragraph length. Even blocks signal machine structure. 0.60 is human-typical; 0.35 is machine-typical.',
     compute: paragraphUniformity,
   },
@@ -925,42 +748,14 @@ export const METRICS = Object.freeze([
   },
   {
     id: 'mattr',
-    label: 'Lexical variety (MATTR)',
-    unit: 'moving TTR, window 50',
+    label: 'Word variety',
+    unit: 'variation, 50-word windows',
     title: 'Moving-average type-token ratio over 50-word windows. Polished machine prose carries dense varied vocabulary; everyday prose repeats more. 0.78 is human-typical; 0.92 is machine-typical.',
     compute: mattr,
   },
   {
-    id: 'mtld',
-    label: 'Lexical diversity (MTLD)',
-    unit: 'words per factor',
-    title: 'How many words pass before vocabulary variety collapses below the threshold. Machine prose sustains variety longer than everyday writing. 75 is human-typical; 175 is machine-typical.',
-    compute: mtld,
-  },
-  {
-    id: 'guiraud',
-    label: "Guiraud's R",
-    unit: 'types / sqrt(tokens)',
-    title: 'Vocabulary richness scaled by length. 8.8 is human-typical; 10.8 is machine-typical.',
-    compute: guiraud,
-  },
-  {
-    id: 'yule-k',
-    label: "Yule's K",
-    unit: 'concentration index',
-    title: 'Shape of the word frequency distribution. Everyday prose concentrates on a few words; machine prose spreads evenly. 200 is human-typical; 42 is machine-typical.',
-    compute: yuleK,
-  },
-  {
-    id: 'honore',
-    label: "Honore's R",
-    unit: 'diversity index',
-    title: 'Rewards rare words used once, penalizes reuse of them. Polished machine prose deploys rare words freely. 2000 is human-typical; 2900 is machine-typical.',
-    compute: honore,
-  },
-  {
     id: 'hapax',
-    label: 'Hapax share',
+    label: 'Words used once',
     unit: '% of words',
     title: 'Share of words that appear exactly once. 38% is human-typical; 54% is machine-typical.',
     compute: hapaxShare,
@@ -974,8 +769,8 @@ export const METRICS = Object.freeze([
   },
   {
     id: 'frequency-profile',
-    label: 'Frequency profile',
-    unit: '% top-1000 words',
+    label: 'Common words',
+    unit: '% from top-1000',
     title: 'Share of words drawn from the 1,000 most frequent English words. Machine prose reaches for rarer vocabulary; everyday human prose stays common. 68% is human-typical; 48% is machine-typical.',
     compute: frequencyProfile,
   },
@@ -1016,7 +811,7 @@ export const METRICS = Object.freeze([
   },
   {
     id: 'triads',
-    label: 'Serial three-item lists',
+    label: 'Three-item lists',
     unit: 'per 1k words',
     title: '"fast, simple, and reliable" — the rule of three machines love. 0 is human-typical; 14 per 1k is machine-typical.',
     compute: triads,
@@ -1051,42 +846,21 @@ export const METRICS = Object.freeze([
   },
   {
     id: 'ngram-repetition',
-    label: 'Ngram repetition',
-    unit: '% repeated tri/quad',
+    label: 'Repeated phrases',
+    unit: '% of phrases',
     title: 'Share of repeated three- and four-word sequences. Machines recycle constructions. 0 is human-typical; 3 per 100 words is machine-typical.',
     compute: ngramRepetition,
   },
   {
-    id: 'collocation-shuffle',
-    label: 'Collocation predictability',
-    unit: '% stock pairings',
-    title: 'Share of adjacent word pairs built from the 1,000 commonest words. Machine prose shuns stock pairings for decorated ones. 66% is human-typical; 54% is machine-typical.',
-    compute: collocationShuffle,
-  },
-  {
     id: 'syntactic-parallelism',
-    label: 'Syntactic parallelism',
-    unit: '% matching neighbours',
+    label: 'Repeated sentence shapes',
+    unit: '% of sentence pairs',
     title: 'Consecutive sentences sharing the same grammatical skeleton. Machines march in lockstep. 0 is human-typical; 20% is machine-typical.',
     compute: syntacticParallelism,
   },
   {
-    id: 'discourse-entropy',
-    label: 'Discourse marker variety',
-    unit: 'normalised entropy',
-    title: 'Variety of connectives between sentences. Machine prose spreads across many connectors. The score runs backwards. 0.82 is human-typical.',
-    compute: discourseEntropy,
-  },
-  {
-    id: 'hedge-density-spread',
-    label: 'Hedge clustering',
-    unit: '% in one stretch',
-    title: 'Where hedges pile up: one stretch or spread through the text. Machines dump caveats together. 45% is human-typical; 85% is machine-typical.',
-    compute: hedgeDensitySpread,
-  },
-  {
     id: 'paragraph-lead',
-    label: 'Paragraph lead repeats',
+    label: 'Repeated paragraph starts',
     unit: '% of paragraphs',
     title: 'Paragraphs opening with the same first word ("First,", "Moreover,"). 0 is human-typical; 30% is machine scaffolding.',
     compute: paragraphLeadRepeat,

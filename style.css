@@ -99,19 +99,6 @@ textarea {
   height: 100%;
 }
 
-.logo::after {
-  content: "official page https://linguacelta.com/aint/";
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 0.5rem);
-  padding: 0.25rem 0.5rem;
-  background: var(--ink);
-  color: var(--paper);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .logo:hover::after,
 .logo:focus-visible::after { opacity: 1; }
 
@@ -124,6 +111,8 @@ textarea {
   font-weight: 700;
   line-height: 1;
 }
+
+.alert { color: var(--hit-strong); }
 
 table {
   width: 100%;

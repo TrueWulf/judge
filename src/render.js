@@ -3,23 +3,25 @@ const HIGH_SIGNAL = 60;
 
 export function renderReport(result, container) {
   if (!result.english) {
-    container.replaceChildren(el('p', { text: result.verdict }));
+    container.replaceChildren(renderAlert(result.verdict));
     return;
   }
 
   const parts = [];
   if (result.overall === null) {
-    parts.push(
-      el('p', {
-        text: `not enough text \u00b7 ${result.wordCount} words \u00b7 min 30 words for a score`,
-      }),
-    );
+    parts.push(renderAlert(result.verdict));
   } else {
     parts.push(renderSummary(result));
   }
   parts.push(renderTable(result.aspects));
   if (result.overall !== null) parts.push(renderFindings(result));
   container.replaceChildren(...parts);
+}
+
+function renderAlert(text) {
+  const line = el('p', { class: 'verdict' });
+  line.append(el('span', { class: 'score alert', text }));
+  return line;
 }
 
 function renderSummary(result) {
@@ -38,7 +40,7 @@ function renderSummary(result) {
   fragment.append(
     verdict,
     el('p', {
-      text: `0 person \u00b7 100 machine \u00b7 ${result.wordCount} words \u00b7 confidence ${Math.round(result.confidence * 100)}% \u00b7 genre ${result.genre}`,
+      text: `${result.wordCount} words, confidence ${Math.round(result.confidence * 100)}%, ${result.genre}`,
     }),
   );
   return fragment;
@@ -91,9 +93,7 @@ function renderFindings(result) {
     return section;
   }
 
-  section.append(
-    el('p', { text: `${findings.length} markers \u00b7 yellow weak \u00b7 red strong` }),
-  );
+  section.append(el('p', { text: `${findings.length} markers` }));
 
   const list = el('ol', { class: 'findings' });
   for (const finding of findings) {
