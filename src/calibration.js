@@ -11,9 +11,9 @@ export const CALIBRATION = Object.freeze({
   guiraud: { humanBaseline: 8.8, aiTypical: 10.8, weight: 0.8 },
   'yule-k': { humanBaseline: 200, aiTypical: 42, weight: 0.7 },
   honore: { humanBaseline: 2000, aiTypical: 2900, weight: 0.8 },
-  hapax: { humanBaseline: 0.38, aiTypical: 0.54, weight: 0.8 },
+  hapax: { humanBaseline: 38, aiTypical: 54, weight: 0.8 },
   'word-length': { humanBaseline: 5.2, aiTypical: 8.4, weight: 1.1 },
-  'frequency-profile': { humanBaseline: 0.68, aiTypical: 0.48, weight: 0.9 },
+  'frequency-profile': { humanBaseline: 68, aiTypical: 48, weight: 0.9 },
   'sentence-starters': { humanBaseline: 1.05, aiTypical: 0.9, weight: 0.7 },
   structure: { humanBaseline: -0.1, aiTypical: 0.6, weight: 1.3 },
   'human-voice': { humanBaseline: 2.5, aiTypical: -1.5, weight: 1.6 },
@@ -39,7 +39,7 @@ export const GENRE_CALIBRATION = Object.freeze({
     hedging: { humanBaseline: 1.0, aiTypical: 4.0 },
     abstraction: { humanBaseline: 5.0, aiTypical: 19.0 },
     'word-length': { humanBaseline: 5.8, aiTypical: 8.2 },
-    'frequency-profile': { humanBaseline: 0.62, aiTypical: 0.42 },
+    'frequency-profile': { humanBaseline: 62, aiTypical: 42 },
   },
   marketing: {
     'marketing-hype': { humanBaseline: 5.0, aiTypical: 25.0 },
@@ -47,7 +47,7 @@ export const GENRE_CALIBRATION = Object.freeze({
   },
   technical: {
     specificity: { humanBaseline: 25.0, aiTypical: 13.0 },
-    'frequency-profile': { humanBaseline: 0.58, aiTypical: 0.42 },
+    'frequency-profile': { humanBaseline: 58, aiTypical: 42 },
     'word-length': { humanBaseline: 5.6, aiTypical: 8.0 },
   },
 });

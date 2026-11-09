@@ -2,13 +2,15 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const EDGE = "['\u2019\\p{L}\\p{N}]";
+
 const regexCache = new Map();
 
 export function phraseToRegex(phrase) {
   const cached = regexCache.get(phrase);
   if (cached !== undefined) return cached;
   const body = phrase.split("'").map(escapeRegex).join("['\u2019]");
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, 'giu');
+  const pattern = new RegExp(`(?<!${EDGE})${body}(?!${EDGE})`, 'giu');
   regexCache.set(phrase, pattern);
   return pattern;
 }
@@ -35,7 +37,7 @@ export function openerToRegex(phrase) {
   const cached = openerCache.get(phrase);
   if (cached !== undefined) return cached;
   const body = phrase.split("'").map(escapeRegex).join("['\u2019]");
-  const pattern = new RegExp(`^${body}(?![\\p{L}\\p{N}])`, 'iu');
+  const pattern = new RegExp(`^${body}(?!${EDGE})`, 'iu');
   openerCache.set(phrase, pattern);
   return pattern;
 }

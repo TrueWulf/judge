@@ -418,7 +418,7 @@ export function hapaxShare(tokens) {
   let hapax = 0;
   for (const count of counts.values()) if (count === 1) hapax += 1;
   return {
-    raw: hapax / words.length,
+    raw: (hapax / words.length) * 100,
     evidence: [],
     measured: true,
   };
@@ -447,7 +447,7 @@ export function frequencyProfile(tokens) {
   let common = 0;
   for (const word of words) if (TOP_1000_WORDS.has(word)) common += 1;
   return {
-    raw: common / words.length,
+    raw: (common / words.length) * 100,
     evidence: [],
     measured: true,
   };
@@ -549,7 +549,21 @@ export function triads(tokens) {
 
 export function specificity(tokens) {
   const evidence = [];
-  const sentenceStarts = new Set(tokens.sentences.map((sentence) => sentence.start));
+  const sentenceStarts = new Set();
+  for (const span of [...tokens.sentences, ...tokens.paragraphs]) {
+    const first = tokens.words.find((word) => word.start >= span.start && word.start < span.end);
+    if (first !== undefined) sentenceStarts.add(first.start);
+  }
+  for (const paragraph of tokens.paragraphs) {
+    if (/[.!?…\u2026]/u.test(paragraph.text)) continue;
+    for (const word of tokens.words) {
+      if (word.start >= paragraph.start && word.start < paragraph.end) sentenceStarts.add(word.start);
+    }
+  }
+  for (const word of tokens.words) {
+    const before = tokens.raw.slice(Math.max(0, word.start - 4), word.start);
+    if (/["\u201c]\s*$/u.test(before)) sentenceStarts.add(word.start);
+  }
 
   for (const word of tokens.words) {
     let reason = '';
@@ -558,17 +572,18 @@ export function specificity(tokens) {
     else if (CONCRETE_NOUNS.has(word.text.toLowerCase())) reason = 'concrete object';
     else if (TECHNICAL_WORDS.has(word.text.toLowerCase())) reason = 'technical artifact';
     else if (word.text.length > 2 && isCapitalised(word.text) && !sentenceStarts.has(word.start)) {
+      if (/^i['\u2019](?:d|m|ll|ve)$/iu.test(word.text)) continue;
       reason = 'named thing';
     }
     if (reason === '') continue;
     evidence.push({ text: word.text, start: word.start, end: word.end, reason });
   }
 
-  for (const match of tokens.raw.matchAll(/["\u201c\u201d\u2018\u2019]/gu)) {
+  for (const match of tokens.raw.matchAll(/"[^"\n]*"|\u201c[^\u201c\n]*\u201d/gu)) {
     evidence.push({
       text: match[0],
       start: match.index,
-      end: match.index + 1,
+      end: match.index + match[0].length,
       reason: 'quoted speech',
     });
   }
@@ -603,8 +618,8 @@ export function roughness(tokens) {
   const evidence = [];
 
   for (const sentence of tokens.sentences) {
-    const first = sentence.text[0] ?? '';
-    if (first === '' || !isCapitalised(first)) {
+    const firstLetter = /\p{L}/u.exec(sentence.text)?.[0] ?? '';
+    if (firstLetter === '' || firstLetter !== firstLetter.toUpperCase()) {
       evidence.push({
         text: sentence.text.slice(0, 20),
         start: sentence.start,
@@ -817,8 +832,12 @@ export function hedgeDensitySpread(tokens) {
 
 function paragraphLead(span) {
   const cleaned = span.text.replace(LIST_MARKER, '').replace(/^[^\p{L}\p{N}]+/u, '');
-  const word = cleaned.split(/\s/u)[0] ?? '';
-  return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+  const words = cleaned.split(/\s/u);
+  const first = (words[0] ?? '').toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+  const second = (words[1] ?? '').toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+  if (first.length === 0) return '';
+  if (STOPWORDS.has(first) && second.length > 0) return `${first} ${second}`;
+  return first;
 }
 
 export function paragraphLeadRepeat(tokens) {
