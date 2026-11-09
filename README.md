@@ -1,23 +1,18 @@
 # judge
 
-rule-based detector of machine writing style.
+detector of machine writing style
 
-reads an english text and scores it 0-100 for ai-ness. twenty-five
-metrics look at cliches, rhythm, vocabulary, structure and typing
-roughness. every metric votes and the verdict comes from the balance
-of votes, not an average. the genre (academic, conversational,
-marketing, technical) is detected and the calibration shifts with it.
-non-english input gets "lang not supported". nothing leaves the
-browser: no build, no dependencies, no data collected.
+reads only english text and scores it 0-100 for ai-ness: twenty-five
+metrics vote on cliches, rhythm, vocabulary and structure, and the
+verdict comes from the balance of votes. genre detection shifts the
+calibration.
+
+'very unstable'
 
 ## usage
 
-paste the text into the block and press enter. the report shows the
-score (with a margin on short texts), the weight of every metric and
-the markers found, highlighted inline in yellow and red. hover a
-table row to see what the metric measures.
-
-texts under 30 words get "min 30 words" instead of a score.
+paste the text, press enter. the report shows the score, the weight
+of every metric and the markers found, highlighted in the text.
 
 ## run
 
