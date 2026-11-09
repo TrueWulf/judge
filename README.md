@@ -21,10 +21,9 @@ texts under 30 words get "min 30 words" instead of a score.
 
 ## run
 
-    python3 -m http.server 8000
+    npx http-server -p 8000
 
-the site is plain html, css and js. any static file server works;
-python is just the one that is always around.
+the site is plain html, css and js. any static file server will do.
 
 ## license
 
