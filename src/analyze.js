@@ -1,0 +1,391 @@
+import { TOP_1000_WORDS } from './lexicons.js';
+import { METRICS } from './metrics.js';
+import {
+  calibrationFor,
+  confidenceFor,
+  detectGenre,
+  marginFor,
+  overallScore,
+  scoreAspect,
+  shrinkScore,
+  verdictFor,
+} from './scoring.js';
+import { tokenize } from './tokenize.js';
+
+const NOT_ENOUGH_TEXT = 'not enough text';
+const NOT_ENGLISH = 'text does not look like english \u00b7 language not supported';
+const ASCII_LETTER_SHARE = 0.85;
+const COMMON_WORD_SHARE = 0.3;
+const LANGUAGE_MIN_WORDS = 20;
+const FOREIGN_MARKER_MIN = 3;
+
+const NON_LATIN_SCRIPT =
+  /[\u0370-\u03ff\u0400-\u04ff\u0590-\u05ff\u0600-\u06ff\u0900-\u097f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/u;
+
+const FOREIGN_MARKERS = new Set([
+  'der',
+  'das',
+  'und',
+  'ist',
+  'nicht',
+  'ich',
+  'mich',
+  'mir',
+  'dich',
+  'dir',
+  'einen',
+  'eine',
+  'ein',
+  'wird',
+  'wurde',
+  'wurden',
+  'werden',
+  'über',
+  'ohne',
+  'sehr',
+  'auch',
+  'noch',
+  'schon',
+  'immer',
+  'für',
+  'zum',
+  'zur',
+  'kann',
+  'muss',
+  'habe',
+  'hatten',
+  'deine',
+  'meine',
+  'seine',
+  'unsere',
+  'eure',
+  'diese',
+  'dieses',
+  'jenem',
+  'alles',
+  'nichts',
+  'etwas',
+  'guten',
+  'danke',
+  'bitte',
+  'tschüss',
+  'entschuldigung',
+  'lo',
+  'gli',
+  'della',
+  'dello',
+  'delle',
+  'nella',
+  'nelle',
+  'sono',
+  'perché',
+  'così',
+  'anche',
+  'ancora',
+  'molto',
+  'più',
+  'città',
+  'grazie',
+  'ciao',
+  'proprio',
+  'questo',
+  'questa',
+  'quello',
+  'quella',
+  'dove',
+  'quando',
+  'però',
+  'sulla',
+  'sul',
+  'stato',
+  'essere',
+  'usted',
+  'ustedes',
+  'señor',
+  'señora',
+  'cómo',
+  'cuándo',
+  'dónde',
+  'pero',
+  'porque',
+  'además',
+  'también',
+  'así',
+  'más',
+  'está',
+  'están',
+  'estoy',
+  'tienes',
+  'tengo',
+  'vamos',
+  'gracias',
+  'hola',
+  'mucho',
+  'desde',
+  'según',
+  'aunque',
+  'porque',
+  'tiene',
+  'puede',
+  'debe',
+  'usted',
+  'você',
+  'vocês',
+  'não',
+  'então',
+  'agora',
+  'obrigado',
+  'obrigada',
+  'muito',
+  'coisa',
+  'ainda',
+  'isto',
+  'isso',
+  'aquilo',
+  'este',
+  'esta',
+  'estes',
+  'estas',
+  'estão',
+  'será',
+  'foram',
+  'tinha',
+  'tenho',
+  'pode',
+  'deve',
+  'está',
+  'quando',
+  'porquê',
+  'já',
+  'até',
+  'após',
+  'através',
+  'segundo',
+  'mesmo',
+  'também',
+  'jest',
+  'się',
+  'że',
+  'oraz',
+  'jako',
+  'przez',
+  'też',
+  'można',
+  'bardzo',
+  'polsce',
+  'polski',
+  'proszę',
+  'dzięki',
+  'cześć',
+  'tylko',
+  'jeszcze',
+  'już',
+  'gdzie',
+  'kiedy',
+  'dlaczego',
+  'być',
+  'był',
+  'była',
+  'było',
+  'będzie',
+  'mają',
+  'może',
+  'nie',
+  'är',
+  'inte',
+  'kanske',
+  'varför',
+  'också',
+  'mycket',
+  'något',
+  'ingenting',
+  'sverige',
+  'svenska',
+  'från',
+  'eller',
+  'att',
+  'som',
+  'tack',
+  'hej',
+  'väldigt',
+  'går',
+  'kommer',
+  'skulle',
+  'ville',
+  'borde',
+  'finns',
+  'estoy',
+  'eres',
+  'fue',
+  'será',
+  'había',
+  'vosotros',
+  'nuestro',
+  'nuestra',
+  'vuestra',
+  'ellos',
+  'ellas',
+  'elles',
+  'vous',
+  'avec',
+  'dans',
+  'mais',
+  'être',
+  'très',
+  'aussi',
+  'pourquoi',
+  'quelque',
+  'choses',
+  'français',
+  'merci',
+  'bonjour',
+  'toujours',
+  'beaucoup',
+  'lorsque',
+  'pendant',
+  'même',
+  'aussi',
+  'après',
+  'chez',
+  'sont',
+  'cette',
+  'ces',
+  'leur',
+  'leurs',
+  'notre',
+  'votre',
+  'pourquoi',
+  'parce',
+  'een',
+  'niet',
+  'ook',
+  'wordt',
+  'hebben',
+  'kunnen',
+  'deze',
+  'dat',
+  'maar',
+  'wij',
+  'jullie',
+  'heeft',
+  'werd',
+  'veel',
+  'meer',
+  'waarom',
+  'daarom',
+  'ich',
+  'du',
+  'er',
+  'sie',
+  'wir',
+  'ihr',
+  'haben',
+  'sein',
+  'bei',
+  'nach',
+  'vor',
+  'mit',
+  'auf',
+  'aus',
+  'durch',
+  'während',
+  'wegen',
+  'gegen',
+  'zwischen',
+  'unter',
+  'über',
+  'sich',
+  'mein',
+  'dein',
+  'sein',
+  'ihr',
+  'unser',
+  'euer',
+  'euere',
+]);
+
+function looksEnglish(tokens) {
+  if (tokens.wordCount === 0) return true;
+  if (NON_LATIN_SCRIPT.test(tokens.raw)) return false;
+
+  let letters = 0;
+  let asciiLetters = 0;
+  for (const char of tokens.raw) {
+    if (!/\p{L}/u.test(char)) continue;
+    letters += 1;
+    if (/[a-z]/iu.test(char)) asciiLetters += 1;
+  }
+  if (letters > 0 && asciiLetters / letters < ASCII_LETTER_SHARE) return false;
+
+  let foreignMarkers = 0;
+  for (const word of tokens.words) {
+    if (FOREIGN_MARKERS.has(word.text.toLowerCase())) foreignMarkers += 1;
+  }
+  if (foreignMarkers >= FOREIGN_MARKER_MIN) return false;
+
+  if (tokens.wordCount >= LANGUAGE_MIN_WORDS) {
+    const words = tokens.words
+      .map((word) => word.text.toLowerCase())
+      .filter((word) => !/^\d+$/u.test(word));
+    if (words.length >= 10) {
+      let common = 0;
+      for (const word of words) if (TOP_1000_WORDS.has(word)) common += 1;
+      if (common / words.length < COMMON_WORD_SHARE) return false;
+    }
+  }
+  return true;
+}
+
+function buildAspect(spec, tokens, genre) {
+  const value = spec.compute(tokens);
+  const calibration = calibrationFor(spec.id, genre);
+  return {
+    id: spec.id,
+    label: spec.label,
+    unit: spec.unit,
+    title: spec.title,
+    raw: value.raw,
+    score: scoreAspect(value.raw, calibration),
+    weight: calibration.weight,
+    measured: value.measured,
+    evidence: value.evidence,
+  };
+}
+
+export function analyze(text) {
+  if (typeof text !== 'string') {
+    throw new TypeError(`analyze expects a string, received ${typeof text}`);
+  }
+
+  const tokens = tokenize(text);
+  if (!looksEnglish(tokens)) {
+    return {
+      english: false,
+      overall: null,
+      margin: 0,
+      confidence: 0,
+      wordCount: tokens.wordCount,
+      genre: 'general',
+      aspects: [],
+      verdict: NOT_ENGLISH,
+      text,
+    };
+  }
+
+  const genre = detectGenre(tokens);
+  const aspects = METRICS.map((spec) => buildAspect(spec, tokens, genre));
+  const hasSignal = aspects.some((aspect) => aspect.measured);
+  const overall = hasSignal ? shrinkScore(overallScore(aspects), tokens.wordCount) : null;
+
+  return {
+    english: true,
+    overall,
+    margin: marginFor(tokens.wordCount),
+    confidence: confidenceFor(tokens.wordCount),
+    wordCount: tokens.wordCount,
+    genre,
+    aspects,
+    verdict: hasSignal ? verdictFor(overall) : NOT_ENOUGH_TEXT,
+    text,
+  };
+}
