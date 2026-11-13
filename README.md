@@ -20,9 +20,6 @@ of every metric and the markers found, highlighted in the text.
 
 the site is plain html, css and js. any static file server will do.
 
-<div align="center">
-
 ## license
 
-isc, see [LICENSE](LICENSE)
-</div>
+isc, see LICENSE
